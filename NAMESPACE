@@ -1,0 +1,33 @@
+# Export most functions
+
+export(Accuracy)
+#export(arabidopsis)
+export(gini_index)
+export(gini_process)
+export(GiniImportanceForest)
+export(GiniImportanceTree)
+#export(InfGain)
+export(InOutBags)
+export(lpnorm)
+export(mlogloss)
+export(Mode)
+export(plotVI)
+export(plotVI2)
+export(preorder2)
+export(rfTitanic)
+#export(splitBag)
+#export(titanic_train)
+
+# Import all packages listed as Imports or Depends
+import(
+  graphics,
+  grDevices,
+  ggplot2
+)
+importFrom("utils", "data")
+importFrom("magrittr","%>%")
+importFrom("randomForest","randomForest")
+importFrom("ggpubr","ggarrange")
+importFrom("binaryLogic","as.binary")
+importFrom("stats", "median", "na.omit", "sd")
+importFrom("dplyr","group_by", "summarise", "count")
