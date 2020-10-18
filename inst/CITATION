@@ -1,0 +1,18 @@
+bibentry(bibtype = "Article",
+  title        = "Unbiased variable importance for random forests",
+  author       = c(person(given = "Markus",
+                          family = "Loecher")),
+  journal      = "Communications in Statistics-Theory and Methods",
+  year         = "2020",
+  volume       = "0",
+  number       = "0",
+  pages        = "1--13",
+  doi          = "10.1080/03610926.2020.1764042",
+
+  header       = "To rfVarImpOOB ranger in publications use:",
+  textVersion  =
+  paste("Loecher, Markus (2020).",
+        "Unbiased variable importance for random forests",
+        "Communications in Statistics-Theory and Methods, 1-13.",
+        "10.1080/03610926.2020.1764042")
+)
