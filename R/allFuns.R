@@ -3,7 +3,7 @@
 preorder2 <- structure(function# recursive traversal of tree assigning row numbers of data for each node and leaf
 ### Recursive calling stops at leaf after which the function propagates back up the tree
 (
-  treeRow, ##<< current row of tree dataframe to be 
+  treeRow, ##<< current row of tree dataframe to be. Default should be the root node, which is coded as 1 
   bag,  ##<< The data for the current row
   tree,  ##<< tree (from randomForest::getTree to be traversed
  # ASSIGN=TRUE, ##<<  unused!! no more global assignments
@@ -43,11 +43,77 @@ preorder2 <- structure(function# recursive traversal of tree assigning row numbe
   k=2
   tree = randomForest::getTree(RF, k, labelVar = TRUE) 
   tree$node=NA
+  attr(tree, "rflib") = "randomForest"
   inbag = rep(rownames(RF$inbag),time=RF$inbag[,k])
   #trainBag=titanic_train[inbag,]
   trainBag=titanic_train[ranRows,][inbag,]
   tree=preorder2(1,trainBag,tree)
 })
+
+intToBin = function# translate decimal to binary format
+### The function translate decimal to binary format (https://stackoverflow.com/questions/6614283/converting-decimal-to-binary-in-r)
+(x,##<< decimal number to be converted
+ n=NULL, ##<< number of bits
+ asChar = FALSE ##<< return as character?
+) 
+{
+  y <- as.integer(x)
+  class(y) <- "binmode"
+  y <- as.character(y)
+  dim(y) <- dim(x)
+  if (asChar) return(y)
+  
+  res = as.integer(unlist(strsplit(y, "")))
+  if (!is.null(n)){
+    K = length(res)
+    if (K < n) res = c(rep(0,n-K),res)
+  }
+  return(res)
+}
+
+dectobin <- function# translate decimal to binary format
+### The function translate decimal to binary format
+(y,##<< decimal number to be converted
+ n=NULL ##<< number of bits
+) {
+  # find the binary sequence corresponding to the decimal number 'y'
+  stopifnot(length(y) == 1, mode(y) == 'numeric')
+  q1 <- (y / 2) %/% 1
+  r <- y - q1 * 2
+  res = c(r)
+  while (q1 >= 1) {
+    q2 <- (q1 / 2) %/% 1
+    r <- q1 - q2 * 2
+    q1 <- q2
+    res = c(r, res)
+  }
+  
+  if (!is.null(n)){
+    K = length(res)
+    if (K < n) res = c(rep(0,n-K),res)
+  }
+  
+  return(res)
+}
+
+# intToBin <- function# translate decimal to binary format
+# ### The function translate decimal to binary format
+# (
+#   x, ##<< decimal number to be converted 
+#   verbose = FALSE   ##<< 
+# ){
+#   K = ceiling(log2(x))
+#   xBinary = rep(0, K)
+#   xBinary[1] = 1
+#   x = x-2^(K-1)
+#   #y = x
+#   if (K>1){
+#     for (i in 2:K){
+#       K = ceiling(log2(x))
+#     }
+#   }
+#   
+# }
 
 splitBag <- function# splits the data from parent node into left and right children
 ### The function properly splits on factor levels
@@ -63,18 +129,35 @@ splitBag <- function# splits the data from parent node into left and right child
     #levels = sort(levels, decreasing = TRUE)
     levels = levels(bag[,split_var])
     n = length(levels)#} else{
-    if (n<2) n=0;#browser()
+    if (n<2) n=0;
     #print(treeRow)
-    binCode =rev(binaryLogic::as.binary(tree[treeRow,'split point'],n=n))
-    split_point = try(as.character(levels[binCode])) #rF encodes male as 10, female as 01
-    if (class(split_point) == "try-error") browser()
-    mask =  bag[,split_var] %in% split_point
+    treeLib = attr(tree, "rflib")
+    if ("randomForest" %in% treeLib){
+      binCode =rev(intToBin(tree[treeRow,'split point'],n=n))
+      split_point = try(as.character(levels[binCode])) #rF encodes male as 10, female as 01
+      if (inherits(split_point, "try-error")) browser()
+      mask =  bag[,split_var] %in% split_point
+    } else if ("ranger" %in% treeLib) {
+      #print("ranger")
+      ### ranger help for treeInfo:
+      #In the "partition" mode, the splitval values for 
+      #unordered factor are comma separated lists of values, 
+      #representing the factor levels (in the original order) 
+      #going to the right.
+      goingRight = as.numeric(strsplit(tree[treeRow,"splitval"],",")[[1]])
+      mask =  !(bag[,split_var] %in% levels[goingRight])
+    } else {
+      cat("tree attribute ", treeLib, "not found\n")
+    }
     left_daughter = rownames(bag)[mask]
     right_daughter = rownames(bag)[!mask]
+    #browser()
     
   } else{
     split_point = tree[treeRow,'split point']
     mask = bag[,split_var] <= split_point
+    #ranger: values smaller or equal go to the left, 
+    #larger values to the right.
     left_daughter = rownames(bag)[mask]
     right_daughter = rownames(bag)[!mask]
     #if (verbose >0) {diagnostics(in_node_df, left_daughter, right_daughter, split_var)} 
@@ -92,7 +175,7 @@ InfGain <- function#computes information gain for each parent node in a tree
   score=c("PMDI21","MDI","MDA","MIA")[1], ##<< scoring method:MDI=mean decrease impurity (Gini),MDA=mean decrease accuracy (permutation),MIA=mean increase accuracy
   verbose=0 ##<< level of verbosity
 ){
-  #browser()
+  
   IG_result = MIA_result = rep(NA, nrow(tree))
   tree$n_node = 0
   
@@ -101,9 +184,9 @@ InfGain <- function#computes information gain for each parent node in a tree
     n_node = tree[i, 'node'] %>% unlist %>%  na.omit %>%length # get the number of elements of the bag
     tree[i, 'n_node'] = n_node
     
-    ld = tree[i, 'left daughter'] # row numeber of the left daughter
+    ld = tree[i, 'left daughter'] # row number of the left daughter
     rd = tree[i, 'right daughter'] # right daughter
-    
+    #browser()
     
     if (ld==0|rd==0){ # information gain for terminal node = NA
       IG=NA
@@ -111,7 +194,7 @@ InfGain <- function#computes information gain for each parent node in a tree
       next
     }
     
-    en_ld = tree[ld, 'gini_index'] # index of the left daughter
+    en_ld = tree[ld, 'gini_index'] # gini index of the left daughter
     en_rd = tree[rd, 'gini_index'] # right daughter
     
     nld = tree[ld, 'node']%>% unlist %>% na.omit %>% length  # get the number of elements of left daughter
@@ -257,31 +340,40 @@ GiniImportanceTree <- structure(function# computes Gini information gain for one
   #see https://stackoverflow.com/questions/9439256/how-can-i-handle-r-cmd-check-no-visible-binding-for-global-variable-notes-when
   IG_acc=IG_gini=`split var`=NULL
   
-  stopifnot(all(sort(base::unique(bag[,ylabel])) == c(0,1))) 
+  yUniq = sort(base::unique(bag[,ylabel])) 
+  if (!all(yUniq %in% c(0,1) )){
+    print(yUniq)
+  }
+  stopifnot(all(yUniq %in% c(0,1))) 
   
   #preorder(1,OOB)
   #proper inbag keeping duplicates:
   #inbag = as.numeric(names((rf3a$inbag[rf3a$inbag[,k]>0,k])))
-  tree = as.data.frame(randomForest::getTree(RF, k, labelVar = TRUE))
+  if ("randomForest" %in% class(RF)){
+    tree = as.data.frame(randomForest::getTree(RF, k, labelVar = TRUE))
+    attr(tree, "rflib") = "randomForest"
+  } else if ("ranger" %in% class(RF)) {
+    tree = as.data.frame(getTree_ranger(RF, k))
+    attr(tree, "rflib") = "ranger"
+  }
   tree$gini_index = NA
   tree$IG_gini= NA
   if (score =="MIA"){
     tree$Accuracy = NA
     tree$IG_acc = NA
   }
-  if (class(Predictor) =="function") {
+  if (inherits(Predictor, "function")) {
     tree$yHat=sample(bag[,ylabel],nrow(tree))
   } else {
     tree$yHat= Predictor
   }
   tree$node=NA
-  
   #browser()
   tree=preorder2(1,bag,tree)#uses unmodified row names now !! (e.g. "6.1)
   
   for (j in 1:nrow(tree)){
     y=bag[unlist(tree[j,"node"]),ylabel]#NEEDS to be (0,1) !!!!
-    if (class(Predictor) =="function") {
+    if (inherits(Predictor, "function")) {
       tree$yHat[j] = Predictor(na.omit(y))
       #print(table(y))
       tree$gini_index[j] = round(gini_index(mean(y,na.rm=TRUE)),9)

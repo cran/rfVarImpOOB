@@ -2,7 +2,7 @@ InOutBags <-  structure(function#separates data into inbag and outbag
 ### convenience function to mitigate risk of improperly disentangling train/test
 ### NOTE: the original row names (too dangerous for repeated rows) are not kept but instead recorded in a separate column
 (
- RF, ##<< object returned by call to randomForest() 
+ RF, ##<< object returned by call to randomForest() or ranger()
  data, ##<< data which was used to train the RF. NOTE: assumes setting of inbag=TRUE while training
  k, ##<< tree number
  inclRowNames = TRUE, ##<< create extra column of original row names
@@ -10,11 +10,18 @@ InOutBags <-  structure(function#separates data into inbag and outbag
  verbose = 0 ##<< level of verbosity
 ){
  n=nrow(data)
- inRows = rep(rownames(RF$inbag),time=RF$inbag[,k])
+ 
+ if ("randomForest" %in% class(RF)){
+   inRows = rep(rownames(RF$inbag),time=RF$inbag[,k])
+   outRows = names((RF$inbag[RF$inbag[,k]==0,k]))
+ } else if ("ranger" %in% class(RF)) {
+   inRows = rep(rownames(data),time=RF$inbag.counts[[k]])
+   outRows = rownames(data)[RF$inbag.counts[[k]]==0] 
+ }
+ 
  inbag = data[inRows,]
  inbag$origRows=inRows
  
- outRows = names((RF$inbag[RF$inbag[,k]==0,k]))
  outbag = data[outRows,] 
  outbag$origRows=outRows
  
